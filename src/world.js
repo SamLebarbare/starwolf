@@ -12,6 +12,7 @@ const loadBackground = (scene) => {
   plane.material.side = THREE.DoubleSide;
   plane.position.set(0, 0, 400);
   scene.add(plane);
+  return plane;
 };
 
 const loadArwing = (scene, mixer) =>
@@ -38,9 +39,61 @@ const loadArwing = (scene, mixer) =>
     });
   });
 
+class BeaconLine {
+  constructor() {
+    this.lines = new THREE.Group();
+
+    const geometry = new THREE.SphereGeometry(1, 3, 2);
+    const material = new THREE.MeshBasicMaterial({ color: 0xffffff });
+
+    for (let i = 0; i < 2000; i += 100) {
+      const aa = new THREE.Mesh(geometry, material);
+      aa.position.x = -250;
+      aa.position.z = i;
+
+      const a = new THREE.Mesh(geometry, material);
+      a.position.x = -120;
+      a.position.z = i;
+      const b = new THREE.Mesh(geometry, material);
+      b.position.x = -35;
+      b.position.z = i;
+      const c = new THREE.Mesh(geometry, material);
+      c.position.x = 35;
+      c.position.z = i;
+
+      const d = new THREE.Mesh(geometry, material);
+      d.position.x = 120;
+      d.position.z = i;
+
+      const dd = new THREE.Mesh(geometry, material);
+      dd.position.x = 250;
+      dd.position.z = i;
+
+      this.lines.add(aa);
+      this.lines.add(a);
+      this.lines.add(b);
+      this.lines.add(c);
+      this.lines.add(d);
+      this.lines.add(dd);
+    }
+
+    return this;
+  }
+
+  update(cam, speed) {
+    if (this.lines.position.z < -500) {
+      this.lines.position.z = 0;
+    }
+    speed = MathUtils.clamp((cam.position.y / 10) * speed, 1, 3);
+    this.lines.position.y = MathUtils.clamp(cam.position.y * 2, -300, -120);
+    this.lines.position.z = this.lines.position.z - speed;
+  }
+}
+
 class Arwing {
-  constructor(object) {
+  constructor(object, cam) {
     this.obj = object;
+    this.cam = cam;
     this.speed = 1;
     //direction
     //d->dive
@@ -49,10 +102,12 @@ class Arwing {
     //sr->straff right
     this.dir = { d: false, c: false, sl: false, sr: false };
     //speeds
-    this.cs = 1.2;
-    this.ds = 1.5;
-    this.ss = 1.0;
+    this.cs = 1;
+    this.ds = 1.3;
+    this.ss = 1;
     this.acc = 0;
+    this.turn = 0;
+    this.climb = 0;
   }
 
   get climbSpeed() {
@@ -86,28 +141,31 @@ class Arwing {
   }
 
   cutMove(func) {
-    setTimeout(func.bind(this), 60);
+    return setTimeout(func.bind(this), 50);
   }
 
   onKeyUp(event) {
+    if (this.abortMove) {
+      clearTimeout(this.abortMove);
+    }
     switch (event.code) {
       case "ArrowUp":
-        this.cutMove(() => {
+        this.abortMove = this.cutMove(() => {
           this.dir.d = false;
         });
         break;
       case "ArrowDown":
-        this.cutMove(() => {
+        this.abortMove = this.cutMove(() => {
           this.dir.c = false;
         });
         break;
       case "ArrowLeft":
-        this.cutMove(() => {
+        this.abortMove = this.cutMove(() => {
           this.dir.sl = false;
         });
         break;
       case "ArrowRight":
-        this.cutMove(() => {
+        this.abortMove = this.cutMove(() => {
           this.dir.sr = false;
         });
         break;
@@ -118,37 +176,61 @@ class Arwing {
 
   update(delta) {
     if (!this.dir.d && !this.dir.c && !this.dir.sl && !this.dir.sr) {
-      const newAcc = this.acc - 0.1;
-      this.acc = MathUtils.clamp(newAcc, 0, 1);
-      this.obj.lookAt(-this.obj.position.x, this.acc, 1000);
+      const newAcc = this.acc - 0.005;
+      this.acc = MathUtils.clamp(newAcc, 0, 2);
     } else {
       const newAcc = this.acc + 0.05;
       this.acc = MathUtils.clamp(newAcc, 0, 2);
     }
+
+    this.obj.position.z = this.acc * -10;
+
+    //Y AXIS: climb
     if (this.dir.d) {
-      const newY = this.obj.position.y - this.diveSpeed;
-      this.obj.position.y = MathUtils.clamp(newY, -110, 133);
-      this.obj.lookAt(-this.obj.position.x, -100 * this.acc, 1000);
+      const newClimb = this.climb - this.diveSpeed;
+      this.climb = MathUtils.clamp(newClimb, -1, 1);
+    } else if (this.dir.c) {
+      const newClimb = this.climb + this.climbSpeed;
+      this.climb = MathUtils.clamp(newClimb, -1, 1);
+    } else {
+      if (this.climb < 0) {
+        const newClimb = this.climb + 0.01;
+        this.climb = MathUtils.clamp(newClimb, -1, 0);
+      } else {
+        const newClimb = this.climb - 0.01;
+        this.climb = MathUtils.clamp(newClimb, 0, 1);
+      }
     }
-    if (this.dir.c) {
-      const newY = this.obj.position.y + this.climbSpeed;
-      this.obj.position.y = MathUtils.clamp(newY, -110, 133);
-      this.obj.lookAt(-this.obj.position.x, 100 * this.acc, 1000);
-    }
+
+    const newY = this.obj.position.y + this.climb;
+    this.obj.position.y = MathUtils.clamp(newY, -100, 133);
+    const newY2 = this.cam.position.y + this.climb * -1;
+    this.cam.position.y = MathUtils.clamp(newY2, -90, 90);
+
+    //X AXIS: turn
     const myAxis = new THREE.Vector3(0, 0, 1);
     if (this.dir.sl) {
-      const newX = this.obj.position.x + this.straffSpeed;
-      this.obj.position.x = MathUtils.clamp(newX, -270, 270);
+      const newTurn = this.turn + 0.1;
+      this.turn = MathUtils.clamp(newTurn, -1, 1);
+    } else if (this.dir.sr) {
+      const newTurn = this.turn - 0.1;
+      this.turn = MathUtils.clamp(newTurn, -1, 1);
+    } else {
+      if (this.turn < 0) {
+        const newTurn = this.turn + 0.01;
+        this.turn = MathUtils.clamp(newTurn, -1, 0);
+      } else {
+        const newTurn = this.turn - 0.01;
+        this.turn = MathUtils.clamp(newTurn, 0, 1);
+      }
+    }
 
-      this.obj.lookAt(0, this.acc, 1000);
-      this.obj.rotateOnWorldAxis(myAxis, MathUtils.degToRad(-25 * this.acc));
-    }
-    if (this.dir.sr) {
-      const newX = this.obj.position.x - this.straffSpeed;
-      this.obj.position.x = MathUtils.clamp(newX, -270, 270);
-      this.obj.lookAt(0, this.acc, 1000);
-      this.obj.rotateOnWorldAxis(myAxis, MathUtils.degToRad(25 * this.acc));
-    }
+    const newX = this.obj.position.x + this.turn * this.straffSpeed;
+    this.obj.position.x = MathUtils.clamp(newX, -200, 200);
+    this.obj.lookAt(-this.obj.position.x, this.climb * 100, 1000);
+    this.obj.rotateOnWorldAxis(myAxis, MathUtils.degToRad(this.turn * -45));
+    this.cam.lookAt(0, 0, 0);
+    this.cam.rotateOnWorldAxis(myAxis, MathUtils.degToRad(this.turn * 2));
   }
 }
-export { Arwing, loadArwing, loadBackground };
+export { Arwing, BeaconLine, loadArwing, loadBackground };

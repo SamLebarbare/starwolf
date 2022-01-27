@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import {} from "./utils.js";
-import { Arwing, loadArwing, loadBackground } from "./world.js";
+import { Arwing, BeaconLine, loadArwing, loadBackground } from "./world.js";
 
 let canvas,
   camera,
@@ -11,6 +11,7 @@ let canvas,
   controls,
   scene,
   arwing,
+  beaconLines,
   mixer,
   renderer;
 
@@ -32,7 +33,7 @@ async function init() {
     20000
   );
 
-  camera.position.set(12, 35, -880);
+  camera.position.set(12, 35, -650);
 
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x67bae0);
@@ -51,8 +52,11 @@ async function init() {
   // load models
   loadBackground(scene);
   const obj = await loadArwing(scene, mixer);
-  arwing = new Arwing(obj);
-  console.dir(arwing);
+  arwing = new Arwing(obj, camera);
+
+  beaconLines = new BeaconLine();
+  scene.add(beaconLines.lines);
+
   // renderer
   renderer = new THREE.WebGLRenderer();
   renderer.shadowMap.enabled = true;
@@ -87,6 +91,9 @@ function onMouseClick(event) {
 async function update() {
   const delta = clock.getDelta();
   controls.update();
+
+  beaconLines.update(camera, 2);
+
   arwing.update();
   // update the picking ray with the camera and mouse position
   raycaster.setFromCamera(mouse, camera);
