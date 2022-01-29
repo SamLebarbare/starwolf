@@ -83,10 +83,7 @@ function onMouseMove(event) {
   mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 }
 
-function onMouseClick(event) {
-  console.dir(camera);
-  doAction = true;
-}
+function onMouseClick(event) {}
 
 async function update() {
   const delta = clock.getDelta();

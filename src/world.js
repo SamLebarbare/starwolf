@@ -84,7 +84,6 @@ class BeaconLine {
     if (this.lines.position.z < -500) {
       this.lines.position.z = 0;
     }
-    speed = MathUtils.clamp((cam.position.y / 10) * speed, 1, 3);
     this.lines.position.y = MathUtils.clamp(cam.position.y * 2, -300, -120);
     this.lines.position.z = this.lines.position.z - speed;
   }
@@ -145,9 +144,6 @@ class Arwing {
   }
 
   onKeyUp(event) {
-    if (this.abortMove) {
-      clearTimeout(this.abortMove);
-    }
     switch (event.code) {
       case "ArrowUp":
         this.abortMove = this.cutMove(() => {
